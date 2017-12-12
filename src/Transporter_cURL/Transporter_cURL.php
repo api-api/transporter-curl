@@ -76,7 +76,7 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 
 			curl_setopt( $handle, CURLOPT_HEADER, true );
 			curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-			curl_setopt( $handle, CURLOPT_TIMEOUT, 5 );
+			curl_setopt( $handle, CURLOPT_TIMEOUT, 20 );
 			curl_setopt( $handle, CURLOPT_CONNECTTIMEOUT, 5 );
 
 			$url = $request->get_uri();
