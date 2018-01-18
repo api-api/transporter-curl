@@ -2,14 +2,16 @@
 /**
  * Transporter_cURL class
  *
- * @package APIAPITransporterCURL
+ * @package APIAPI\Transporter_cURL
  * @since 1.0.0
  */
 
 namespace APIAPI\Transporter_cURL;
 
 use APIAPI\Core\Transporters\Transporter;
-use APIAPI\Core\Exception;
+use APIAPI\Core\Request\Request;
+use APIAPI\Core\Request\Method;
+use APIAPI\Core\Exception\Request_Transport_Exception;
 
 if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 
@@ -23,7 +25,6 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 		 * Contains temporary headers.
 		 *
 		 * @since 1.0.0
-		 * @access protected
 		 * @var string
 		 */
 		protected $headers = '';
@@ -32,7 +33,6 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 		 * Temporarily stores whether headers have been received.
 		 *
 		 * @since 1.0.0
-		 * @access protected
 		 * @var bool
 		 */
 		protected $done_headers = false;
@@ -41,7 +41,6 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 		 * Contains temporary response data.
 		 *
 		 * @since 1.0.0
-		 * @access protected
 		 * @var string
 		 */
 		protected $response_data = '';
@@ -50,7 +49,6 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 		 * Temporarily counts response bytes.
 		 *
 		 * @since 1.0.0
-		 * @access protected
 		 * @var int
 		 */
 		protected $response_bytes = 0;
@@ -59,14 +57,15 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 		 * Sends a request and returns the response.
 		 *
 		 * @since 1.0.0
-		 * @access public
 		 *
-		 * @param APIAPI\Core\Request\Request $request The request to send.
+		 * @param Request $request The request to send.
 		 * @return array The returned response as an array with 'headers', 'body',
 		 *               and 'response' key. The array does not necessarily
 		 *               need to include all of these keys.
+		 *
+		 * @throws Request_Transport_Exception Thrown when the request cannot be sent.
 		 */
-		public function send_request( $request ) {
+		public function send_request( Request $request ) {
 			$this->headers = '';
 			$this->done_headers = false;
 			$this->response_data = '';
@@ -82,21 +81,21 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 			$url = $request->get_uri();
 
 			$method = $request->get_method();
-			if ( 'POST' === $method ) {
+			if ( Method::POST === $method ) {
 				curl_setopt( $handle, CURLOPT_POST, true );
-			} elseif ( in_array( $method, array( 'PUT', 'PATCH', 'DELETE' ) ) ) {
+			} elseif ( in_array( $method, array( Method::PUT, Method::PATCH, Method::DELETE ) ) ) {
 				curl_setopt( $handle, CURLOPT_CUSTOMREQUEST, $method );
 			}
 
 			$data = $request->get_params();
 			if ( ! empty( $data ) ) {
-				if ( 'GET' === $method ) {
+				if ( Method::GET === $method ) {
 					$url = $this->build_get_query( $url, $data );
 				} else {
 					if ( 0 === strpos( $request->get_header( 'content-type' ), 'application/json' ) ) {
 						$data = json_encode( $data );
 						if ( ! $data ) {
-							throw new Exception( sprintf( 'The request to %s could not be sent as the data could not be JSON-encoded.', $url ) );
+							throw new Request_Transport_Exception( sprintf( 'The request to %s could not be sent as the data could not be JSON-encoded.', $url ) );
 						}
 					} else {
 						$data = http_build_query( $data, null, '&' );
@@ -127,14 +126,14 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 				$error_message = curl_error( $handle );
 
 				curl_close( $handle );
-				throw new Exception( sprintf( 'The request to %1$s could not be sent because of cURL error %2$s: %3$s', $url, $error_code, $error_message ) );
+				throw new Request_Transport_Exception( sprintf( 'The request to %1$s could not be sent because of cURL error %2$s: %3$s', $url, $error_code, $error_message ) );
 			}
 
 			curl_close( $handle );
 
 			$headers = $this->headers;
 			if ( false === ( $separator_position = strpos( $this->response_data, $this->headers ) ) ) {
-				throw new Exception( sprintf( 'The request to %s returned an invalid response without a header/body separator.', $url ) );
+				throw new Request_Transport_Exception( sprintf( 'The request to %s returned an invalid response without a header/body separator.', $url ) );
 			}
 
 			$body = substr( $this->response_data, $separator_position + strlen( $this->headers ) );
@@ -144,12 +143,12 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 
 			preg_match( '#^HTTP/(1\.\d)[ \t]+(\d+)#i', array_shift( $headers ), $matches );
 			if ( empty( $matches ) ) {
-				throw new Exception( sprintf( 'The request to %s returned an invalid response without protocol and status code.', $url ) );
+				throw new Request_Transport_Exception( sprintf( 'The request to %s returned an invalid response without protocol and status code.', $url ) );
 			}
 
 			$status_code = (int) $matches[2];
 			if ( $status_code < 200 || $status_code >= 300 ) {
-				throw new Exception( sprintf( 'The request to %1$s returned status code %2$s: %3$s', $url, $status_code, self::get_status_message( $status_code ) ) );
+				throw new Request_Transport_Exception( sprintf( 'The request to %1$s returned status code %2$s: %3$s', $url, $status_code, self::get_status_message( $status_code ) ) );
 			}
 
 			$headers_assoc = array();
@@ -180,7 +179,6 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 		 * Receives the streamed headers.
 		 *
 		 * @since 1.0.0
-		 * @access public
 		 *
 		 * @param resource $handle  cURL resource.
 		 * @param string   $headers Headers string.
@@ -205,7 +203,6 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 		 * Receives the streamed body.
 		 *
 		 * @since 1.0.0
-		 * @access public
 		 *
 		 * @param resource $handle cURL resource.
 		 * @param string   $data   Body string.
@@ -222,13 +219,12 @@ if ( ! class_exists( 'APIAPI\Transporter_cURL\Transporter_cURL' ) ) {
 		 * Formats a URL with GET data.
 		 *
 		 * @since 1.0.0
-		 * @access protected
 		 *
 		 * @param string $url  URL to use.
 		 * @param array  $data Data to build query string.
 		 * @return string URL with query data.
 		 */
-		protected function build_get_query( $url, $data ) {
+		protected function build_get_query( $url, array $data ) {
 			if ( ! empty( $data ) ) {
 				$url_parts = parse_url( $url );
 

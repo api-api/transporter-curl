@@ -2,7 +2,7 @@
 /**
  * Transporter loader.
  *
- * @package APIAPITransporterCURL
+ * @package APIAPI\Transporter_cURL
  * @since 1.0.0
  */
 
